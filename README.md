@@ -27,7 +27,7 @@ export PATH="$HOME/.local/bin:$PATH"   # 새 터미널에서도 쓰려면 셸 �
 ollama-carry --version
 ```
 
-실행하면 `ollama-carry 0.1.0` 이 나옵니다. PATH 를 건드리기 싫다면 마지막 줄을 `"$HOME/.local/bin/ollama-carry" --version` 으로 바꿔 전체 경로로 실행해도 됩니다. 최소 리눅스에서는 `git` 과 Dart SDK 만 있으면 됩니다(Dart 설치 방법은 위 링크). 빌드 결과를 레포 안에 두지 않도록 `-o` 로 레포 밖 경로를 지정하세요.
+실행하면 `ollama-carry 0.1.1` 이 나옵니다. PATH 를 건드리기 싫다면 마지막 줄을 `"$HOME/.local/bin/ollama-carry" --version` 으로 바꿔 전체 경로로 실행해도 됩니다. 최소 리눅스에서는 `git` 과 Dart SDK 만 있으면 됩니다(Dart 설치 방법은 위 링크). 빌드 결과를 레포 안에 두지 않도록 `-o` 로 레포 밖 경로를 지정하세요.
 
 ## 빠르게 시작하기
 
@@ -194,18 +194,12 @@ flowchart LR
 
 시스템 `tar -tf` 로 목록을 볼 수 있습니다(조각은 `cat b.carry.tar.0* | tar -tf -`). 이 호환은 `test/tar_test.dart` 에서 시스템 `tar` 와 `package:archive` 로 교차 확인합니다.
 
-## 다른 도구와 비교
+## 언제 쓰나
 
-| | ollama-carry | 폴더 통째 복사(rsync·robocopy) | GGUF + `ollama create` | sammcj/gollama |
-|---|---|---|---|---|
-| 고른 모델만 | O | X(전체 또는 손으로 digest 찾기) | O | 목록·삭제 중심 |
-| 공유 블롭 한 번만 | O | 손으로 | 해당 없음 | 해당 없음 |
-| FAT32 용 조각 분할 | O | X | X | X |
-| 블롭·조각 해시 검증 | O | X(복사 도구 기본은 없음) | X | X |
-| digest 보존 | O(바이트 그대로) | O | X(다시 만들면 달라질 수 있음) | 해당 없음 |
-| 받는 PC 에 필요한 것 | 실행 파일 하나 | 파일 복사 도구 | Ollama 서버 실행 중 | Go TUI |
-
-레지스트리에서 직접 내려받는 도구(예: ollama-dl 류)는 네트워크가 있는 쪽에서 유용하고, 이 도구는 이미 받은 모델을 **옮기고 검증**하는 데 집중합니다. 폴더 전체를 한 번 옮기는 것뿐이라면 rsync 가 더 간단합니다.
+- 이럴 때 맞습니다: 설치된 모델 중 **고른 것만** 네트워크가 없는 PC 로 옮기고 해시로 확인하고 싶을 때, 또는 FAT32 USB 처럼 파일 크기 제한이 있는 곳에 **조각으로 나눠** 옮길 때.
+- 네트워크가 되는 PC 라면 `ollama pull` 이 더 간단할 수 있습니다(https://github.com/ollama/ollama, 2026-11-10 확인).
+- 모델 폴더 전체를 한 번 옮기기만 한다면 rsync 가 더 간단할 수 있습니다(https://rsync.samba.org/).
+- GGUF 파일에서 모델을 다시 만들려면 Ollama 의 Modelfile 과 `ollama create` 를 보세요(https://github.com/ollama/ollama, 2026-11-10 확인).
 
 ## 알려진 한계
 - 8GiB 넘는 항목은 헤더 단위 테스트까지만 확인했습니다. 실제 9GB 이상 왕복은 직접 해 보지 않았습니다.
