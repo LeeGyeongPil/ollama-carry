@@ -48,8 +48,20 @@ const Set<String> _commands = {
   'tour',
 };
 
+/// One-line usage per command, shown by `<command> --help`.
+const Map<String, String> _commandUsage = {
+  'where': 'Usage: ollama-carry where [options]',
+  'list': 'Usage: ollama-carry list [options]',
+  'export': 'Usage: ollama-carry export <model>... -o <file> [options]',
+  'import': 'Usage: ollama-carry import <file|file.000> [options]',
+  'verify': 'Usage: ollama-carry verify [<model>...] [options]',
+  'mock': 'Usage: ollama-carry mock <dir> [options]',
+  'tour': 'Usage: ollama-carry tour [options]',
+};
+
 ArgParser _parser(String name) {
-  final parser = ArgParser();
+  final parser = ArgParser()
+    ..addFlag('help', abbr: 'h', negatable: false, help: 'Show this help.');
   switch (name) {
     case 'export':
       parser
@@ -125,6 +137,12 @@ int runCli(
         '${e.message}\n${parser.usage}',
         exitCode: exitUsage,
       );
+    }
+    // `<command> --help`: print usage only, run nothing.
+    if (results['help'] as bool) {
+      say(_commandUsage[command]!);
+      say(parser.usage);
+      return exitOk;
     }
     final rest = results.rest;
 
