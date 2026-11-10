@@ -1,0 +1,21 @@
+name: ollama_carry
+description: Move Ollama models between machines offline - bundle, split for FAT32, verify with SHA-256, and import atomically.
+version: 0.1.0
+repository: https://github.com/LeeGyeongPil/ollama-carry
+publish_to: none
+
+environment:
+  sdk: ^3.8.1
+
+executables:
+  ollama-carry: ollama_carry
+
+dependencies:
+  args: 2.7.0
+  crypto: 3.0.8
+  path: 1.9.1
+
+dev_dependencies:
+  archive: 4.5.2
+  lints: 5.1.1
+  test: 1.25.15
