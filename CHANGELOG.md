@@ -1,0 +1,20 @@
+# Changelog
+
+All notable changes to this project are documented in this file.
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.1.0] - 2026-11-10
+
+### Added
+- `where`, `list`, `export`, `import`, `verify`, `mock` and `tour` commands.
+- Bundles that store shared blobs once, in a deterministic tar (ustar with PAX
+  `path`/`size` records, so blobs above 8 GiB and long names work).
+- `--split` into numbered parts (`512K`, `3.9G`, `fat32`) and a
+  `sha256sum`-compatible `<bundle>.sha256` list of part checksums.
+- Import that hashes every blob while unpacking into a staging folder, installs
+  blobs first and manifests last, skips blobs that are already installed (after hashing the bundle's copy of
+  them, so a damaged part is refused even on re-import), and
+  refuses path traversal, links, unknown entries and name conflicts.
+- `verify` with `ok` / `missing` / `corrupt` per blob and `--json` output.
+- Practice (mock) models with fake weights for trying everything without Ollama.
