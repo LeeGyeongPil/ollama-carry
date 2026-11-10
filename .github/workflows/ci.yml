@@ -1,0 +1,29 @@
+# The tool is offline-only and every test uses practice (mock) models,
+# so CI needs no keys and no Ollama install.
+name: ci
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "17 3 * * 1"   # weekly: catch SDK or dependency drift
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      # Dart 3.8.1 is the minimum supported version (pubspec: sdk ^3.8.1).
+      - uses: dart-lang/setup-dart@v1.8.1
+        with:
+          sdk: 3.8.1
+      - run: dart pub get
+      - run: dart analyze
+      - run: dart format --output=none --set-exit-if-changed .
+      - run: dart test
+      - run: dart run bin/ollama_carry.dart tour
