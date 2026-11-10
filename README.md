@@ -27,7 +27,7 @@ export PATH="$HOME/.local/bin:$PATH"   # 새 터미널에서도 쓰려면 셸 �
 ollama-carry --version
 ```
 
-실행하면 `ollama-carry 0.1.1` 이 나옵니다. PATH 를 건드리기 싫다면 마지막 줄을 `"$HOME/.local/bin/ollama-carry" --version` 으로 바꿔 전체 경로로 실행해도 됩니다. 최소 리눅스에서는 `git` 과 Dart SDK 만 있으면 됩니다(Dart 설치 방법은 위 링크). 빌드 결과를 레포 안에 두지 않도록 `-o` 로 레포 밖 경로를 지정하세요.
+실행하면 `ollama-carry 0.1.2` 이 나옵니다. PATH 를 건드리기 싫다면 마지막 줄을 `"$HOME/.local/bin/ollama-carry" --version` 으로 바꿔 전체 경로로 실행해도 됩니다. 최소 리눅스에서는 `git` 과 Dart SDK 만 있으면 됩니다(Dart 설치 방법은 위 링크). 빌드 결과를 레포 안에 두지 않도록 `-o` 로 레포 밖 경로를 지정하세요.
 
 ## 빠르게 시작하기
 
@@ -78,7 +78,7 @@ models/
 | `mock <폴더>` | 연습용 목(mock) 모델 폴더 생성 | `ollama-carry mock src` |
 | `tour` | 위 전 과정을 임시 폴더에서 시연 | `ollama-carry tour` |
 
-`where`·`list`·`export`·`import`·`verify` 는 `--models <폴더>` 로 모델 폴더를 직접 고를 수 있습니다.
+`where`·`list`·`export`·`import`·`verify` 는 `--models <폴더>` 로 모델 폴더를 직접 고를 수 있습니다. 각 명령의 옵션은 `ollama-carry <명령> --help`(또는 `-h`)로 확인합니다.
 
 종료 코드: `0` 성공 / `1` 무결성 문제(해시 불일치·누락·거부) / `2` 사용법 오류·없는 모델 / `3` 이름 충돌(`--force` 없음).
 

@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.1.2] - 2026-11-11
+
+### Fixed
+- `<command> --help` and `-h` now print that command's usage and exit 0 instead of failing with "Could not find an option".
+
+### Known limitations
+- The error output for an unknown option does not include a `Usage:` line. The error path is intentionally unchanged in this release.
+
 ## [0.1.1] - 2026-11-10
 
 ### Changed
