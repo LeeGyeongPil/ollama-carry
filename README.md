@@ -1,5 +1,7 @@
 # ollama-carry
 
+**한국어** | [English](README.en.md)
+
 > **English summary** — A single-file CLI that moves chosen Ollama models to another machine offline: it bundles the manifests and blobs (shared blobs once), splits the bundle into FAT32-sized parts, and on the other side checks every blob with SHA-256 before installing it atomically. For people who set up local LLMs on air-gapped or slow-network PCs. Build from source: `dart pub get && mkdir -p ~/.local/bin && dart compile exe bin/ollama_carry.dart -o ~/.local/bin/ollama-carry` (no release binaries yet; add `~/.local/bin` to PATH); try it with no Ollama and no network: `dart run bin/ollama_carry.dart tour`.
 
 모델 폴더를 통째로 복사하지 않고, **이름으로 고른 모델만** USB 용 묶음으로 만들고, 받는 PC 에서 **해시로 확인한 뒤에만** 설치하는 도구입니다. 매니페스트를 열어 해시 파일을 손으로 찾는 일, 4GB 넘는 파일이 FAT32 USB 에 안 들어가는 문제, 복사가 깨졌는지 모르는 불안을 줄입니다.
