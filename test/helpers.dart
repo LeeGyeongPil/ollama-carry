@@ -25,10 +25,21 @@ class CliResult {
 }
 
 /// Runs the CLI in-process and captures output.
+///
+/// The language is pinned to English (unless [environment] sets one) so the
+/// tests do not depend on the developer's locale.
 CliResult cli(List<String> args, {Map<String, String>? environment}) {
   final out = StringBuffer();
   final err = StringBuffer();
-  final code = runCli(args, out: out, err: err, environment: environment);
+  final env = <String, String>{
+    if (environment == null) ...Platform.environment,
+    'OLLAMA_CARRY_LANG': '',
+    'LC_ALL': '',
+    'LC_MESSAGES': '',
+    'LANG': 'en_US.UTF-8',
+    ...?environment,
+  };
+  final code = runCli(args, out: out, err: err, environment: env);
   return CliResult(code, out.toString(), err.toString());
 }
 

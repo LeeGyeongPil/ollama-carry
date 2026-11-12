@@ -8,7 +8,7 @@ import 'model_ref.dart';
 const String bundleFormat = 'ollama-carry/1';
 
 /// Tool version written into bundles.
-const String toolVersion = '0.1.2';
+const String toolVersion = '0.2.0';
 
 /// A model listed in the bundle index.
 class IndexModel {
@@ -62,29 +62,26 @@ class BundleIndex {
     try {
       json = jsonDecode(utf8.decode(bytes));
     } on FormatException {
-      throw CarryException(
-        'carry.json is not valid JSON; is this a bundle '
-        'made by ollama-carry?',
-      );
+      throw CarryException.coded('bundle.json_invalid');
     }
     if (json is! Map<String, Object?>) {
-      throw CarryException('carry.json is not a JSON object');
+      throw CarryException.coded('bundle.not_object');
     }
     if (json['format'] != bundleFormat) {
-      throw CarryException(
-        'unsupported bundle format "${json['format']}" (this version reads '
-        '"$bundleFormat"); update ollama-carry on this machine',
+      throw CarryException.coded(
+        'bundle.format',
+        params: {'format': json['format'], 'supported': bundleFormat},
       );
     }
     final models = <IndexModel>[];
     final modelList = json['models'];
     final blobList = json['blobs'];
     if (modelList is! List<Object?> || blobList is! List<Object?>) {
-      throw CarryException('carry.json is missing "models" or "blobs"');
+      throw CarryException.coded('bundle.missing_fields');
     }
     for (final raw in modelList) {
       if (raw is! Map<String, Object?>) {
-        throw CarryException('carry.json has an invalid model entry');
+        throw CarryException.coded('bundle.bad_model');
       }
       final manifest = raw['manifest'];
       final sha = raw['sha256'];
@@ -94,19 +91,19 @@ class BundleIndex {
           !RegExp(r'^[0-9a-f]{64}$').hasMatch(sha) ||
           size is! int ||
           size < 0) {
-        throw CarryException('carry.json has an invalid model entry');
+        throw CarryException.coded('bundle.bad_model');
       }
       models.add(IndexModel(ModelRef.fromEntryName(manifest), sha, size));
     }
     final blobs = <String, int>{};
     for (final raw in blobList) {
       if (raw is! Map<String, Object?>) {
-        throw CarryException('carry.json has an invalid blob entry');
+        throw CarryException.coded('bundle.bad_blob');
       }
       final digest = raw['digest'];
       final size = raw['size'];
       if (digest is! String || size is! int || size < 0) {
-        throw CarryException('carry.json has an invalid blob entry');
+        throw CarryException.coded('bundle.bad_blob');
       }
       blobs[normalizeDigest(digest)] = size;
     }

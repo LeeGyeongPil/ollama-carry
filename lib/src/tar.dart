@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'digest.dart';
 import 'errors.dart';
+import 'i18n.dart';
 
 /// Receives bytes (a file, a list of part files, a test buffer).
 abstract class ByteSink {
@@ -51,7 +52,11 @@ const int _block = 512;
 /// A malformed tar stream; [offset] is the byte position in the stream.
 class TarFormatException extends CarryException {
   /// Creates the exception.
-  TarFormatException(super.message, this.offset);
+  TarFormatException(super.message, this.offset, {super.code, super.params});
+
+  /// Creates the exception from a message [code] (see `i18n.dart`).
+  factory TarFormatException.coded(String code, int offset) =>
+      TarFormatException(tr('en', code), offset, code: code);
 
   /// Stream offset where the problem was found.
   final int offset;
@@ -226,7 +231,7 @@ class TarReader {
       var size = _size(block, start);
       if (type == 'x' || type == 'g') {
         if (size > 1024 * 1024) {
-          throw TarFormatException('PAX header is too large', start);
+          throw TarFormatException.coded('tar.pax_large', start);
         }
         final data = _readExact(size, start);
         _skipExact((_block - size % _block) % _block, start);
@@ -237,7 +242,7 @@ class TarReader {
       if (pax['size'] != null) {
         final parsed = int.tryParse(pax['size']!);
         if (parsed == null || parsed < 0) {
-          throw TarFormatException('invalid PAX size record', start);
+          throw TarFormatException.coded('tar.pax_size', start);
         }
         size = parsed;
       }
@@ -283,17 +288,10 @@ class TarReader {
     final block = Uint8List(_block);
     final first = _readUpTo(block, 0, _block);
     if (first == 0) {
-      throw TarFormatException(
-        'bundle ends without an end-of-archive marker; a part file is '
-        'probably missing or truncated',
-        _position,
-      );
+      throw TarFormatException.coded('tar.no_end', _position);
     }
     if (first < _block) {
-      throw TarFormatException(
-        'bundle ends in the middle of a header',
-        _position,
-      );
+      throw TarFormatException.coded('tar.mid_header', _position);
     }
     if (block.every((b) => b == 0)) {
       // Second zero block confirms the end; tolerate a single one.
@@ -317,18 +315,14 @@ class TarReader {
 
   void _fill(Uint8List target, int length, int offsetForError) {
     if (_readUpTo(target, 0, length) < length) {
-      throw TarFormatException(
-        'bundle ends in the middle of an entry; a part file is probably '
-        'missing or truncated',
-        _position,
-      );
+      throw TarFormatException.coded('tar.mid_entry', _position);
     }
   }
 
   Uint8List _readExact(int length, int errorOffset) {
     final data = Uint8List(length);
     if (_readUpTo(data, 0, length) < length) {
-      throw TarFormatException('bundle ends early', errorOffset);
+      throw TarFormatException.coded('tar.early', errorOffset);
     }
     return data;
   }
@@ -349,10 +343,7 @@ class TarReader {
       sum += (i >= 148 && i < 156) ? 0x20 : block[i];
     }
     if (stored != sum) {
-      throw TarFormatException(
-        'invalid tar header checksum (the data is damaged)',
-        offset,
-      );
+      throw TarFormatException.coded('tar.checksum', offset);
     }
   }
 
@@ -362,12 +353,12 @@ class TarReader {
       for (var i = 125; i < 136; i++) {
         value = (value << 8) | block[i];
       }
-      if (value < 0) throw TarFormatException('invalid size field', offset);
+      if (value < 0) throw TarFormatException.coded('tar.size_field', offset);
       return value;
     }
     final text = _text(block, 124, 12).trim();
     final value = text.isEmpty ? 0 : int.tryParse(text, radix: 8);
-    if (value == null) throw TarFormatException('invalid size field', offset);
+    if (value == null) throw TarFormatException.coded('tar.size_field', offset);
     return value;
   }
 
@@ -384,10 +375,10 @@ class TarReader {
     var pos = 0;
     while (pos < data.length) {
       final space = data.indexOf(0x20, pos);
-      if (space < 0) throw TarFormatException('invalid PAX header', offset);
+      if (space < 0) throw TarFormatException.coded('tar.pax_header', offset);
       final length = int.tryParse(utf8.decode(data.sublist(pos, space)));
       if (length == null || length < 1 || pos + length > data.length) {
-        throw TarFormatException('invalid PAX header', offset);
+        throw TarFormatException.coded('tar.pax_header', offset);
       }
       final record = utf8.decode(
         data.sublist(space + 1, pos + length - 1),

@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 
 import 'digest.dart';
 import 'errors.dart';
+import 'i18n.dart';
 import 'tar.dart';
 
 /// Part size for `--split fat32`: just under the 4 GiB FAT32 file limit.
@@ -20,9 +21,9 @@ int parseSize(String text) {
     r'^([0-9]+(?:\.[0-9]+)?)\s*([kmg]?)(?:i?b)?$',
   ).firstMatch(value);
   if (match == null) {
-    throw CarryException(
-      'invalid size "$text": use a number with an optional K, M or G '
-      '(for example 512K or 3.9G) or "fat32"',
+    throw CarryException.coded(
+      'size.invalid',
+      params: {'text': text},
       exitCode: exitUsage,
     );
   }
@@ -30,8 +31,9 @@ int parseSize(String text) {
   final bytes = (double.parse(match.group(1)!) * factor[match.group(2)]!)
       .floor();
   if (bytes < 1024) {
-    throw CarryException(
-      'size "$text" is too small; the minimum part size is 1K',
+    throw CarryException.coded(
+      'size.small',
+      params: {'text': text},
       exitCode: exitUsage,
     );
   }
@@ -183,9 +185,9 @@ class BundleParts {
     } else if (File(partName(path, 0)).existsSync()) {
       base = path;
     } else {
-      throw CarryException(
-        'bundle not found: $path (also looked for ${partName(path, 0)}). '
-        'Pass the first part, for example bundle.carry.tar.000',
+      throw CarryException.coded(
+        'parts.not_found',
+        params: {'path': path, 'first': partName(path, 0)},
         exitCode: exitUsage,
       );
     }
@@ -194,9 +196,9 @@ class BundleParts {
       files.add(File(partName(base, files.length)));
     }
     if (files.isEmpty) {
-      throw CarryException(
-        'part ${p.basename(partName(base, 0))} is missing; copy all parts of '
-        'the bundle into the same folder',
+      throw CarryException.coded(
+        'parts.first_missing',
+        params: {'name': p.basename(partName(base, 0))},
         exitCode: exitUsage,
       );
     }
@@ -209,10 +211,12 @@ class BundleParts {
       if (m != null) {
         final index = int.parse(m.group(1)!);
         if (index >= files.length) {
-          throw CarryException(
-            'part ${p.basename(partName(base, files.length))} is missing '
-            '(found ${p.basename(entity.path)} but not the part before it); '
-            'copy that part again',
+          throw CarryException.coded(
+            'parts.gap',
+            params: {
+              'name': p.basename(partName(base, files.length)),
+              'found': p.basename(entity.path),
+            },
             exitCode: exitUsage,
           );
         }
@@ -220,9 +224,9 @@ class BundleParts {
     }
     for (final listed in checksums.keys) {
       if (!File(p.join(p.dirname(base), listed)).existsSync()) {
-        throw CarryException(
-          '$listed is listed in ${p.basename(checksumPath(base))} but is not '
-          'in this folder; copy it again',
+        throw CarryException.coded(
+          'parts.listed_missing',
+          params: {'name': listed, 'list': p.basename(checksumPath(base))},
           exitCode: exitUsage,
         );
       }
@@ -254,6 +258,12 @@ class BundleParts {
   /// `[start, end]`: which part holds the data and whether its checksum
   /// differs from the `.sha256` list (only those parts are re-hashed).
   String describeProblem(int start, int end) {
+    final msg = describeProblemMsg(start, end);
+    return tr('en', msg.code, msg.params);
+  }
+
+  /// Same as [describeProblem], as a translatable message.
+  Msg describeProblemMsg(int start, int end) {
     final names = <String>[];
     final damaged = <String>[];
     var unchecked = false;
@@ -267,21 +277,15 @@ class BundleParts {
         damaged.add(name);
       }
     }
-    final where = 'the data is in part ${names.join(', ')}';
+    final params = {'parts': names.join(', '), 'damaged': damaged.join(', ')};
     if (damaged.isNotEmpty) {
-      return '$where.\n'
-          'part ${damaged.join(', ')}: checksum does NOT match the .sha256 '
-          'list - copy ${damaged.length == 1 ? 'this part' : 'these parts'} '
-          'again.';
+      return Msg(
+        damaged.length == 1 ? 'problem.damaged_one' : 'problem.damaged_many',
+        params,
+      );
     }
-    if (unchecked) {
-      return '$where.\n'
-          'no .sha256 list found next to the bundle, so the damaged part '
-          'cannot be named; copy all parts again.';
-    }
-    return '$where.\n'
-        'all those parts match the .sha256 list, so the bundle was already '
-        'damaged when it was exported; export it again.';
+    if (unchecked) return Msg('problem.unchecked', params);
+    return Msg('problem.exported_bad', params);
   }
 }
 

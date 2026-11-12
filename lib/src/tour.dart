@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import 'digest.dart';
 import 'errors.dart';
 import 'export.dart';
+import 'i18n.dart';
 import 'import.dart';
 import 'mock.dart';
 import 'store.dart';
@@ -13,26 +14,34 @@ import 'verify.dart';
 /// Shows the whole flow on practice (mock) data inside a temporary folder:
 /// mock store, export in parts, import, verify, tamper, verify again, and a
 /// damaged part being refused. The temporary folder is always deleted.
-/// Works without a network and without Ollama.
-void runTour(void Function(String line) out, {Directory? tempParent}) {
+/// Works without a network and without Ollama. Text is printed in [lang].
+void runTour(
+  void Function(String line) out, {
+  Directory? tempParent,
+  String lang = 'en',
+}) {
+  String t(String code, [Map<String, Object?> params = const {}]) =>
+      tr(lang, code, params);
   final parent = tempParent ?? Directory.systemTemp;
   final root = parent.createTempSync('ollama-carry-tour-');
   try {
-    out(
-      'tour: practice (mock) models, fake weights - `ollama run` would not '
-      'work on them',
-    );
+    out(t('tour.intro'));
     final src = ModelStore(Directory(p.join(root.path, 'source')));
     final dst = ModelStore(Directory(p.join(root.path, 'target')));
     final bundle = p.join(root.path, 'usb', 'demo.carry.tar');
 
-    out('\n1. create a mock models folder');
+    out(t('tour.s1'));
     createMockStore(src.root);
     for (final ref in src.listModels()) {
-      out('   ${ref.display}  ${formatBytes(src.readManifest(ref).totalSize)}');
+      out(
+        t('tour.model', {
+          'name': ref.display,
+          'size': formatBytes(src.readManifest(ref).totalSize),
+        }),
+      );
     }
 
-    out('\n2. export tiny:latest and tiny:chat in 512K parts');
+    out(t('tour.s2'));
     final exported = exportModels(
       src,
       ['tiny:latest', 'tiny:chat'],
@@ -40,42 +49,54 @@ void runTour(void Function(String line) out, {Directory? tempParent}) {
       splitSize: 512 * 1024,
     );
     out(
-      '   ${exported.parts.length} parts, ${exported.blobCount} unique '
-      'blobs, shared blobs stored once (saved '
-      '${formatBytes(exported.savedBytes)})',
+      t('tour.exported', {
+        'parts': exported.parts.length,
+        'blobs': exported.blobCount,
+        'saved': formatBytes(exported.savedBytes),
+      }),
     );
 
-    out('\n3. import into an empty folder (first part is enough)');
+    out(t('tour.s3'));
     final first = importBundle(dst, '$bundle.000');
     out(
-      '   blobs: written ${first.blobsToWrite}, skipped '
-      '${first.blobsSkipped}',
+      t('tour.imported', {
+        'written': first.blobsToWrite,
+        'skipped': first.blobsSkipped,
+      }),
     );
     final again = importBundle(dst, '$bundle.000');
     out(
-      '   again: written ${again.blobsToWrite}, skipped '
-      '${again.blobsSkipped}',
+      t('tour.again', {
+        'written': again.blobsToWrite,
+        'skipped': again.blobsSkipped,
+      }),
     );
 
-    out('\n4. verify the installed copy');
+    out(t('tour.s4'));
     final good = verifyStore(dst);
     out(
-      '   ok: ${good.okCount}, missing: ${good.missingCount}, '
-      'corrupt: ${good.corruptCount}',
+      t('tour.counts', {
+        'ok': good.okCount,
+        'missing': good.missingCount,
+        'corrupt': good.corruptCount,
+      }),
     );
 
-    out('\n5. damage one byte of a blob, then verify');
+    out(t('tour.s5'));
     final victim = good.entries.first;
     final file = dst.findBlob(victim.digest)!;
     final raf = file.openSync(mode: FileMode.append)..writeByteSync(0);
     raf.closeSync();
     final bad = verifyStore(dst);
     out(
-      '   ok: ${bad.okCount}, missing: ${bad.missingCount}, '
-      'corrupt: ${bad.corruptCount}',
+      t('tour.counts', {
+        'ok': bad.okCount,
+        'missing': bad.missingCount,
+        'corrupt': bad.corruptCount,
+      }),
     );
 
-    out('\n6. damage one byte inside a part, then import elsewhere');
+    out(t('tour.s6'));
     final part = File('$bundle.001');
     final bytes = part.readAsBytesSync();
     bytes[bytes.length ~/ 2] ^= 0xFF;
@@ -83,21 +104,27 @@ void runTour(void Function(String line) out, {Directory? tempParent}) {
     final other = ModelStore(Directory(p.join(root.path, 'other')));
     try {
       importBundle(other, '$bundle.000');
-      throw CarryException('tour failed: a damaged part was accepted');
+      throw CarryException.coded('tour.failed');
     } on CarryException catch (e) {
-      if (e.message.startsWith('tour failed')) rethrow;
-      final lines = e.message.split('\n');
-      out('   refused: ${lines.first.substring(0, 28)}... is damaged');
+      if (e.code == 'tour.failed') rethrow;
+      final lines = e.localized(lang).split('\n');
+      final digest = e.params['digest'];
+      if (e.code == 'import.blob_damaged' && digest is String) {
+        // First 16 hex characters of the digest are enough to recognise it.
+        out(t('tour.refused', {'digest': digest.substring(0, 23)}));
+      } else {
+        out(t('tour.refused_other', {'first': lines.first}));
+      }
       for (final line in lines.skip(1).take(2)) {
         out('   ${line.trim()}');
       }
       final wrote =
           other.root.existsSync() &&
           other.root.listSync(recursive: true).whereType<File>().isNotEmpty;
-      out('   files written to the target: ${wrote ? 'some' : 'none'}');
+      out(t('tour.files', {'value': t(wrote ? 'word.some' : 'word.none')}));
     }
     out('');
-    out('tour: ok');
+    out(t('tour.ok'));
   } finally {
     root.deleteSync(recursive: true);
   }

@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import 'bundle.dart';
 import 'digest.dart';
 import 'errors.dart';
+import 'i18n.dart';
 import 'manifest.dart';
 import 'parts.dart';
 import 'store.dart';
@@ -51,13 +52,10 @@ ExportResult exportModels(
   required String output,
   int? splitSize,
   void Function(String line)? log,
+  String lang = 'en',
 }) {
   if (names.isEmpty) {
-    throw CarryException(
-      'give at least one model name, e.g. `ollama-carry export llama3 -o '
-      'bundle.carry.tar`',
-      exitCode: exitUsage,
-    );
+    throw CarryException.coded('export.no_models', exitCode: exitUsage);
   }
   final refs = store.resolveNames(names)
     ..sort((a, b) => a.entryName.compareTo(b.entryName));
@@ -76,9 +74,9 @@ ExportResult exportModels(
       referenced += blob.size;
       final known = blobs[blob.digest];
       if (known != null && known != blob.size) {
-        throw CarryException(
-          '${shortDigest(blob.digest)} has two different sizes in the '
-          'manifests; the store is inconsistent. Run `ollama-carry verify`.',
+        throw CarryException.coded(
+          'export.size_conflict',
+          params: {'digest': shortDigest(blob.digest)},
         );
       }
       blobs[blob.digest] = blob.size;
@@ -91,15 +89,19 @@ ExportResult exportModels(
   for (final entry in sortedBlobs.entries) {
     final file = store.findBlob(entry.key);
     if (file == null) {
-      throw CarryException(
-        'blob ${entry.key} is missing from ${store.blobsDir.path}. Run '
-        '`ollama-carry verify` and pull the model again on this machine.',
+      throw CarryException.coded(
+        'export.blob_missing',
+        params: {'digest': entry.key, 'dir': store.blobsDir.path},
       );
     }
     if (file.lengthSync() != entry.value) {
-      throw CarryException(
-        'blob ${entry.key} has ${file.lengthSync()} bytes but the manifest '
-        'says ${entry.value}. Run `ollama-carry verify`.',
+      throw CarryException.coded(
+        'export.blob_size',
+        params: {
+          'digest': entry.key,
+          'actual': file.lengthSync(),
+          'expected': entry.value,
+        },
       );
     }
   }
@@ -115,9 +117,9 @@ ExportResult exportModels(
           RegExp('^${RegExp.escape(base)}\\.\\d{3}\$').hasMatch(name);
     });
     if (taken.isNotEmpty) {
-      throw CarryException(
-        '${taken.first.path} already exists. Choose another -o name or '
-        'delete the old bundle first.',
+      throw CarryException.coded(
+        'export.exists',
+        params: {'path': taken.first.path},
         exitCode: exitUsage,
       );
     }
@@ -154,14 +156,18 @@ ExportResult exportModels(
         raf.closeSync();
       }
       if (copied != entry.value || 'sha256:${hash.close()}' != digest) {
-        throw CarryException(
-          'blob $digest in the store does not match its digest (it is '
-          'damaged or changed while exporting). Nothing was exported. Run '
-          '`ollama-carry verify` and pull the model again.',
+        throw CarryException.coded(
+          'export.blob_changed',
+          params: {'digest': digest},
         );
       }
       tar.endFile();
-      log?.call('  blob ${shortDigest(digest)}  ${formatBytes(entry.value)}');
+      log?.call(
+        tr(lang, 'export.log_blob', {
+          'digest': shortDigest(digest),
+          'size': formatBytes(entry.value),
+        }),
+      );
     }
     tar.finish();
   } catch (_) {

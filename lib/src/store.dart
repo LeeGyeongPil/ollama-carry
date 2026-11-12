@@ -13,13 +13,24 @@ const String linuxServiceModelsDir = '/usr/share/ollama/.ollama/models';
 /// A resolved models folder and the reason it was chosen.
 class StoreLocation {
   /// Creates a location.
-  const StoreLocation(this.path, this.reason);
+  const StoreLocation(
+    this.path,
+    this.reason, {
+    this.reasonCode,
+    this.reasonParams = const {},
+  });
 
   /// Models folder path.
   final String path;
 
-  /// Why this folder was chosen (printed by `where`).
+  /// Why this folder was chosen (English; printed by `where`).
   final String reason;
+
+  /// Message code of [reason] for translation (see `i18n.dart`).
+  final String? reasonCode;
+
+  /// Values for the `{name}` markers of [reasonCode].
+  final Map<String, Object?> reasonParams;
 }
 
 bool _hasManifests(String dir) =>
@@ -41,29 +52,36 @@ StoreLocation resolveModelsDir({
   final os = platform ?? Platform.operatingSystem;
   final check = hasManifests ?? _hasManifests;
   if (explicit != null && explicit.isNotEmpty) {
-    return StoreLocation(explicit, '--models option');
+    return StoreLocation(
+      explicit,
+      '--models option',
+      reasonCode: 'reason.models_option',
+    );
   }
   final fromEnv = env['OLLAMA_MODELS'];
   if (fromEnv != null && fromEnv.isNotEmpty) {
-    return StoreLocation(fromEnv, 'OLLAMA_MODELS environment variable');
+    return StoreLocation(
+      fromEnv,
+      'OLLAMA_MODELS environment variable',
+      reasonCode: 'reason.env',
+    );
   }
   final home = (os == 'windows' ? env['USERPROFILE'] : env['HOME']) ?? '';
   if (home.isEmpty) {
-    throw CarryException(
-      'cannot find your home folder; pass --models <folder> or set '
-      'OLLAMA_MODELS',
-      exitCode: exitUsage,
-    );
+    throw CarryException.coded('store.no_home', exitCode: exitUsage);
   }
   if (os == 'linux' && check(linuxServiceModelsDir)) {
     return const StoreLocation(
       linuxServiceModelsDir,
       'Linux service folder (it contains manifests/)',
+      reasonCode: 'reason.service',
     );
   }
   return StoreLocation(
     p.join(home, '.ollama', 'models'),
     'default for $os (~/.ollama/models)',
+    reasonCode: 'reason.default',
+    reasonParams: {'os': os},
   );
 }
 
@@ -125,9 +143,9 @@ class ModelStore {
   Manifest readManifest(ModelRef ref) {
     final file = manifestFile(ref);
     if (!file.existsSync()) {
-      throw CarryException(
-        'model "${ref.display}" is not installed in ${root.path}. '
-        'Run `ollama-carry list` to see installed models.',
+      throw CarryException.coded(
+        'store.not_installed',
+        params: {'name': ref.display, 'path': root.path},
         exitCode: exitUsage,
       );
     }
@@ -140,10 +158,9 @@ class ModelStore {
     for (final name in names) {
       final ref = ModelRef.parse(name);
       if (!manifestFile(ref).existsSync()) {
-        throw CarryException(
-          'model "$name" is not installed in ${root.path}. '
-          'Run `ollama-carry list` to see installed models, or pass '
-          '--models <folder>.',
+        throw CarryException.coded(
+          'store.not_installed_hint',
+          params: {'name': name, 'path': root.path},
           exitCode: exitUsage,
         );
       }

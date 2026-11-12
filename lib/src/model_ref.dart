@@ -33,12 +33,13 @@ class ModelRef {
   static ModelRef parse(String input) {
     final text = input.trim();
     if (text.isEmpty) {
-      throw CarryException('model name is empty', exitCode: exitUsage);
+      throw CarryException.coded('model.empty', exitCode: exitUsage);
     }
     final parts = text.split('/');
     if (parts.length > 3) {
-      throw CarryException(
-        'invalid model name "$input": use [host/][namespace/]model[:tag]',
+      throw CarryException.coded(
+        'model.invalid',
+        params: {'name': input},
         exitCode: exitUsage,
       );
     }
@@ -64,9 +65,9 @@ class ModelRef {
   /// `[host, namespace, model, tag]` (no defaults are applied).
   static ModelRef fromSegments(List<String> segments) {
     if (segments.length != 4) {
-      throw CarryException(
-        'invalid manifest path "${segments.join('/')}": '
-        'expected manifests/<host>/<namespace>/<model>/<tag>',
+      throw CarryException.coded(
+        'model.bad_path',
+        params: {'path': segments.join('/')},
       );
     }
     return _validated(
@@ -83,7 +84,7 @@ class ModelRef {
   static ModelRef fromEntryName(String name) {
     final segments = name.split('/');
     if (segments.length != 5 || segments.first != 'manifests') {
-      throw CarryException('invalid manifest entry name "$name"');
+      throw CarryException.coded('model.bad_entry', params: {'name': name});
     }
     return fromSegments(segments.sublist(1));
   }
@@ -102,9 +103,9 @@ class ModelRef {
         _segment.hasMatch(model) &&
         _segment.hasMatch(tag);
     if (!ok) {
-      throw CarryException(
-        'invalid model name "$original": each part must use only letters, '
-        'digits, "." "_" "-" and must not be empty or start with "."',
+      throw CarryException.coded(
+        'model.bad_part',
+        params: {'name': original},
         exitCode: exitCode,
       );
     }

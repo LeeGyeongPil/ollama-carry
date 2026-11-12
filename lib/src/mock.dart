@@ -35,16 +35,13 @@ void createMockStore(
   int weightsSize = defaultMockWeightsSize,
 }) {
   if (weightsSize < 1) {
-    throw CarryException(
-      'weights size must be at least 1 byte',
-      exitCode: exitUsage,
-    );
+    throw CarryException.coded('mock.size', exitCode: exitUsage);
   }
   final store = ModelStore(dir);
   if (store.manifestsDir.existsSync() && store.listModels().isNotEmpty) {
-    throw CarryException(
-      '${dir.path} already contains models; choose an empty folder for the '
-      'practice models',
+    throw CarryException.coded(
+      'mock.not_empty',
+      params: {'path': dir.path},
       exitCode: exitUsage,
     );
   }

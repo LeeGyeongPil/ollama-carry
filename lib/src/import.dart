@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import 'bundle.dart';
 import 'digest.dart';
 import 'errors.dart';
+import 'i18n.dart';
 import 'manifest.dart';
 import 'model_ref.dart';
 import 'parts.dart';
@@ -70,6 +71,7 @@ ImportReport importBundle(
   bool dryRun = false,
   bool force = false,
   void Function(String line)? log,
+  String lang = 'en',
 }) {
   final parts = BundleParts.discover(bundlePath);
   final reader = PartsReader(parts);
@@ -79,13 +81,10 @@ ImportReport importBundle(
     // 1. The index comes first.
     final first = _guard(parts, tar.nextEntry);
     if (first == null || first.name != 'carry.json' || !first.isRegular) {
-      throw CarryException(
-        'this is not an ollama-carry bundle (the first entry must be '
-        'carry.json)',
-      );
+      throw CarryException.coded('import.not_bundle');
     }
     if (first.size > _maxIndexBytes) {
-      throw CarryException('carry.json is unreasonably large; refusing');
+      throw CarryException.coded('import.index_large');
     }
     final index = BundleIndex.parse(_guard(parts, tar.readAll));
 
@@ -106,10 +105,9 @@ ImportReport importBundle(
       }
     }
     if (conflicts.isNotEmpty && !force) {
-      throw CarryException(
-        'these models already exist with different content: '
-        '${conflicts.join(', ')}. Nothing was written. Use --force to '
-        'replace them.',
+      throw CarryException.coded(
+        'import.conflicts',
+        params: {'names': conflicts.join(', ')},
         exitCode: exitConflict,
       );
     }
@@ -146,31 +144,31 @@ ImportReport importBundle(
       final entry = _guard(parts, tar.nextEntry);
       if (entry == null) break;
       if (!entry.isRegular) {
-        throw CarryException(
-          'refusing bundle: entry "${entry.name}" is not a plain file '
-          '(type "${entry.typeFlag}"); links and special files are not '
-          'allowed',
+        throw CarryException.coded(
+          'import.not_plain',
+          params: {'name': entry.name, 'type': entry.typeFlag},
         );
       }
       if (!seen.add(entry.name)) {
-        throw CarryException(
-          'refusing bundle: duplicate entry "${entry.name}"',
+        throw CarryException.coded(
+          'import.duplicate',
+          params: {'name': entry.name},
         );
       }
       if (entry.name.startsWith('manifests/')) {
         final ref = ModelRef.fromEntryName(entry.name);
         final model = index.models.where((m) => m.ref == ref).firstOrNull;
         if (model == null || entry.size > _maxManifestBytes) {
-          throw CarryException(
-            'refusing bundle: manifest "${entry.name}" is not listed in '
-            'carry.json',
+          throw CarryException.coded(
+            'import.manifest_unlisted',
+            params: {'name': entry.name},
           );
         }
         final bytes = _guard(parts, tar.readAll);
         if (bytes.length != model.size || sha256Hex(bytes) != model.sha256) {
-          throw CarryException(
-            'refusing bundle: manifest "${entry.name}" does not match '
-            'carry.json (size or SHA-256 differs)',
+          throw CarryException.coded(
+            'import.manifest_mismatch',
+            params: {'name': entry.name},
           );
         }
         Manifest.parse(bytes, source: entry.name);
@@ -179,18 +177,21 @@ ImportReport importBundle(
       }
       final match = _blobEntry.firstMatch(entry.name);
       if (match == null) {
-        throw CarryException(
-          'refusing bundle: unexpected entry "${entry.name}". Allowed: '
-          'carry.json, manifests/<host>/<namespace>/<model>/<tag>, '
-          'blobs/sha256-<64 hex>',
+        throw CarryException.coded(
+          'import.unexpected_entry',
+          params: {'name': entry.name},
         );
       }
       final digest = 'sha256:${match.group(1)}';
       final expectedSize = index.blobs[digest];
       if (expectedSize == null || expectedSize != entry.size) {
-        throw CarryException(
-          'refusing bundle: blob "${entry.name}" is not listed in carry.json '
-          'or its size differs (${entry.size} vs ${expectedSize ?? 'n/a'})',
+        throw CarryException.coded(
+          'import.blob_unlisted',
+          params: {
+            'name': entry.name,
+            'actual': entry.size,
+            'expected': expectedSize ?? 'n/a',
+          },
         );
       }
       final installed = present.contains(digest);
@@ -215,48 +216,52 @@ ImportReport importBundle(
       }
       final actual = 'sha256:${hash.close()}';
       if (actual != digest) {
-        throw CarryException(
-          'blob $digest is damaged in the bundle (its content hashes to '
-          '$actual).\n${parts.describeProblem(start, tar.position - 1)}\n'
-          'Nothing was written to ${store.root.path}.',
+        throw CarryException.coded(
+          'import.blob_damaged',
+          params: {
+            'digest': digest,
+            'actual': actual,
+            'where': parts.describeProblemMsg(start, tar.position - 1),
+            'path': store.root.path,
+          },
         );
       }
       if (installed) {
-        log?.call(
-          '  skip   ${shortDigest(digest)}  already installed (bundle copy '
-          'hash ok)',
-        );
+        log?.call(tr(lang, 'import.log_skip', {'digest': shortDigest(digest)}));
         continue;
       }
       stagedBlobs.add(digest);
       log?.call(
-        '  hash ok ${shortDigest(digest)}  ${formatBytes(entry.size)}  (staged)',
+        tr(lang, 'import.log_hash', {
+          'digest': shortDigest(digest),
+          'size': formatBytes(entry.size),
+        }),
       );
     }
 
     // 4. The bundle must be complete and self-consistent.
     for (final model in index.models) {
       if (!manifests.containsKey(model.ref.entryName)) {
-        throw CarryException(
-          'bundle is incomplete: manifest of ${model.ref.display} is '
-          'missing. Copy all parts again.',
+        throw CarryException.coded(
+          'import.incomplete_manifest',
+          params: {'name': model.ref.display},
         );
       }
     }
     for (final digest in index.blobs.keys) {
       if (!present.contains(digest) && !stagedBlobs.contains(digest)) {
-        throw CarryException(
-          'bundle is incomplete: blob $digest is missing. Copy all parts '
-          'again.',
+        throw CarryException.coded(
+          'import.incomplete_blob',
+          params: {'digest': digest},
         );
       }
     }
     for (final entry in manifests.entries) {
       for (final blob in Manifest.parse(entry.value).blobs) {
         if (index.blobs[blob.digest] != blob.size) {
-          throw CarryException(
-            'refusing bundle: ${entry.key} references ${blob.digest} which '
-            'carry.json does not list with the same size',
+          throw CarryException.coded(
+            'import.ref_mismatch',
+            params: {'manifest': entry.key, 'digest': blob.digest},
           );
         }
       }
@@ -298,9 +303,13 @@ T _guard<T>(BundleParts parts, T Function() read) {
   try {
     return read();
   } on TarFormatException catch (e) {
-    throw CarryException(
-      '${e.message} (at byte ${e.offset} of the bundle).\n'
-      '${parts.describeProblem(e.offset, e.offset)}',
+    throw CarryException.coded(
+      'import.tar',
+      params: {
+        'problem': e.asMsg(),
+        'offset': e.offset,
+        'where': parts.describeProblemMsg(e.offset, e.offset),
+      },
     );
   }
 }
@@ -314,7 +323,10 @@ void _move(File source, File target) {
     source.copySync(target.path);
     if (target.lengthSync() != source.lengthSync()) {
       target.deleteSync();
-      throw CarryException('copy to ${target.path} was incomplete');
+      throw CarryException.coded(
+        'import.copy_incomplete',
+        params: {'path': target.path},
+      );
     }
     source.deleteSync();
   }

@@ -35,17 +35,26 @@ class Manifest {
     try {
       json = jsonDecode(utf8.decode(bytes));
     } on FormatException {
-      throw CarryException('$source is not valid JSON');
+      throw CarryException.coded(
+        'manifest.not_json',
+        params: {'source': source},
+      );
     }
     if (json is! Map<String, Object?>) {
-      throw CarryException('$source is not a JSON object');
+      throw CarryException.coded(
+        'manifest.not_object',
+        params: {'source': source},
+      );
     }
     final blobs = <BlobRef>[];
     final config = json['config'];
     if (config != null) blobs.add(_descriptor(config, source));
     final layers = json['layers'];
     if (layers is! List<Object?>) {
-      throw CarryException('$source has no "layers" list');
+      throw CarryException.coded(
+        'manifest.no_layers',
+        params: {'source': source},
+      );
     }
     for (final layer in layers) {
       blobs.add(_descriptor(layer, source));
@@ -55,12 +64,18 @@ class Manifest {
 
   static BlobRef _descriptor(Object? raw, String source) {
     if (raw is! Map<String, Object?>) {
-      throw CarryException('$source has a layer that is not an object');
+      throw CarryException.coded(
+        'manifest.layer_not_object',
+        params: {'source': source},
+      );
     }
     final digest = raw['digest'];
     final size = raw['size'];
     if (digest is! String || size is! int || size < 0) {
-      throw CarryException('$source has a layer without digest and size');
+      throw CarryException.coded(
+        'manifest.layer_incomplete',
+        params: {'source': source},
+      );
     }
     final media = raw['mediaType'];
     return BlobRef(media is String ? media : '', normalizeDigest(digest), size);

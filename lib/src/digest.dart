@@ -18,9 +18,7 @@ bool isDigest(String raw) => _digestPattern.hasMatch(raw);
 String normalizeDigest(String raw) {
   final match = _digestPattern.firstMatch(raw);
   if (match == null) {
-    throw CarryException(
-      'invalid digest "$raw": expected sha256:<64 hex characters>',
-    );
+    throw CarryException.coded('digest.invalid', params: {'raw': raw});
   }
   return 'sha256:${match.group(1)!.toLowerCase()}';
 }

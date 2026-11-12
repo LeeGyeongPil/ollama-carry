@@ -6,37 +6,13 @@ import 'bundle.dart';
 import 'digest.dart';
 import 'errors.dart';
 import 'export.dart';
+import 'i18n.dart';
 import 'import.dart';
 import 'mock.dart';
 import 'parts.dart';
 import 'store.dart';
 import 'tour.dart';
 import 'verify.dart';
-
-const String _usage =
-    '''
-ollama-carry $toolVersion - move Ollama models between machines, offline.
-
-Usage: ollama-carry <command> [options]
-
-Commands:
-  where                         Show which models folder is used and why.
-  list                          List installed models and their sizes.
-  export <model>... -o <file>   Bundle models (shared blobs once) into a tar,
-                                optionally split: --split 512K | 3.9G | fat32.
-  import <file|file.000>        Verify every blob with SHA-256, then install.
-                                --dry-run previews, --force replaces models.
-  verify [<model>...]           Check installed blobs (ok / missing / corrupt).
-                                --json prints machine readable output.
-  mock <dir>                    Create practice (mock) models with fake weights.
-  tour                          Run the whole flow on mock data in a temp folder.
-
-Options for where/list/export/import/verify: --models <dir>
-  (default: OLLAMA_MODELS, then the OS default folder).
-
-Exit codes: 0 ok, 1 integrity problem, 2 usage error or unknown model,
-3 model name conflict (use --force).
-''';
 
 const Set<String> _commands = {
   'where',
@@ -48,62 +24,107 @@ const Set<String> _commands = {
   'tour',
 };
 
-/// One-line usage per command, shown by `<command> --help`.
-const Map<String, String> _commandUsage = {
-  'where': 'Usage: ollama-carry where [options]',
-  'list': 'Usage: ollama-carry list [options]',
-  'export': 'Usage: ollama-carry export <model>... -o <file> [options]',
-  'import': 'Usage: ollama-carry import <file|file.000> [options]',
-  'verify': 'Usage: ollama-carry verify [<model>...] [options]',
-  'mock': 'Usage: ollama-carry mock <dir> [options]',
-  'tour': 'Usage: ollama-carry tour [options]',
-};
-
-ArgParser _parser(String name) {
+ArgParser _parser(String name, String lang) {
+  String t(String code) => tr(lang, code);
   final parser = ArgParser()
-    ..addFlag('help', abbr: 'h', negatable: false, help: 'Show this help.');
+    ..addFlag('help', abbr: 'h', negatable: false, help: t('opt.help'))
+    ..addOption('lang', help: t('opt.lang'), valueHelp: 'en|ko');
   switch (name) {
     case 'export':
       parser
-        ..addOption('output', abbr: 'o', help: 'Bundle file to write.')
-        ..addOption(
-          'split',
-          help:
-              'Part size such as 512K, 3.9G or "fat32" (default: one '
-              'file).',
-        );
+        ..addOption('output', abbr: 'o', help: t('opt.output'))
+        ..addOption('split', help: t('opt.split'));
     case 'import':
       parser
-        ..addFlag(
-          'dry-run',
-          negatable: false,
-          help: 'Show what would happen, write nothing.',
-        )
-        ..addFlag(
-          'force',
-          negatable: false,
-          help: 'Replace models that differ.',
-        );
+        ..addFlag('dry-run', negatable: false, help: t('opt.dry_run'))
+        ..addFlag('force', negatable: false, help: t('opt.force'));
     case 'verify':
-      parser.addFlag('json', negatable: false, help: 'JSON output.');
+      parser.addFlag('json', negatable: false, help: t('opt.json'));
     case 'mock':
       parser.addOption(
         'weights-size',
         defaultsTo: '$defaultMockWeightsSize',
-        help: 'Size of the fake weights in bytes (K/M/G allowed).',
+        help: t('opt.weights_size'),
       );
   }
   if (const {'where', 'list', 'export', 'import', 'verify'}.contains(name)) {
-    parser.addOption('models', help: 'Ollama models folder.');
+    parser.addOption('models', help: t('opt.models'));
   }
   return parser;
 }
 
+/// Turns a `package:args` parse error into a message that can be translated;
+/// unknown wording stays as the original English text.
+Object _parseProblem(FormatException e) {
+  final text = e.message;
+  const patterns = {
+    'args.no_option': r'^Could not find an option named "(.*)"\.$',
+    'args.no_flag': r'^Could not find an option or flag "(.*)"\.$',
+    'args.no_short': r'^Could not find an option with short name "(.*)"\.$',
+    'args.missing_value': r'^Missing argument for "(.*)"\.$',
+    'args.flag_value': r'^Flag option "(.*)" ',
+  };
+  for (final entry in patterns.entries) {
+    final m = RegExp(entry.value).firstMatch(text);
+    if (m != null) return Msg(entry.key, {'name': m.group(1)});
+  }
+  final allowed = RegExp(
+    r'^"(.*)" is not an allowed value for option "(.*)"\.',
+  ).firstMatch(text);
+  if (allowed != null) {
+    return Msg('args.bad_value', {
+      'value': allowed.group(1),
+      'name': allowed.group(2),
+    });
+  }
+  return text;
+}
+
+/// Result of looking for `--lang` in the arguments.
+class _LangScan {
+  _LangScan(this.rest, this.value, this.error);
+  final List<String> rest;
+  final String? value;
+  final String? error;
+}
+
+/// Removes `--lang <v>` / `--lang=<v>` (allowed before or after the command).
+_LangScan _scanLang(List<String> args) {
+  final rest = <String>[];
+  String? value;
+  for (var i = 0; i < args.length; i++) {
+    final a = args[i];
+    if (a == '--') {
+      rest.addAll(args.sublist(i));
+      break;
+    }
+    String? given;
+    if (a == '--lang') {
+      if (i + 1 >= args.length) {
+        return _LangScan(rest, null, langMissingMessage());
+      }
+      given = args[++i];
+    } else if (a.startsWith('--lang=')) {
+      given = a.substring('--lang='.length);
+    } else {
+      rest.add(a);
+      continue;
+    }
+    if (!supportedLangs.contains(given)) {
+      return _LangScan(rest, null, langInvalidMessage(given));
+    }
+    value = given;
+  }
+  return _LangScan(rest, value, null);
+}
+
 /// Runs the CLI and returns the exit code. Output goes to [out] and [err]
 /// (default stdout and stderr); [environment] defaults to the process
-/// environment.
+/// environment. The language comes from `--lang`, then `OLLAMA_CARRY_LANG`,
+/// `LC_ALL`, `LC_MESSAGES`, `LANG` (Korean if it starts with `ko`, else
+/// English).
 int runCli(
-  List<String> args, {
+  List<String> allArgs, {
   StringSink? out,
   StringSink? err,
   Map<String, String>? environment,
@@ -112,8 +133,21 @@ int runCli(
   final stderrSink = err ?? stderr;
   void say(String line) => stdoutSink.writeln(line);
 
+  final scan = _scanLang(allArgs);
+  if (scan.error != null) {
+    stderrSink.writeln('error: ${scan.error}');
+    return exitUsage;
+  }
+  final args = scan.rest;
+  final lang = resolveLang(
+    flag: scan.value,
+    environment: environment ?? Platform.environment,
+  );
+  String t(String code, [Map<String, Object?> params = const {}]) =>
+      tr(lang, code, params);
+
   if (args.isEmpty || args.first == '--help' || args.first == '-h') {
-    say(_usage);
+    say(t('usage.main', {'version': toolVersion}));
     return args.isEmpty ? exitUsage : exitOk;
   }
   if (args.first == '--version') {
@@ -123,24 +157,26 @@ int runCli(
   final command = args.first;
   try {
     if (!_commands.contains(command)) {
-      throw CarryException(
-        'unknown command "$command"; run `ollama-carry --help`',
+      throw CarryException.coded(
+        'error.unknown_command',
+        params: {'command': command},
         exitCode: exitUsage,
       );
     }
-    final parser = _parser(command);
+    final parser = _parser(command, lang);
     final ArgResults results;
     try {
       results = parser.parse(args.sublist(1));
     } on FormatException catch (e) {
-      throw CarryException(
-        '${e.message}\n${parser.usage}',
+      throw CarryException.coded(
+        'args.with_usage',
+        params: {'problem': _parseProblem(e), 'usage': parser.usage},
         exitCode: exitUsage,
       );
     }
     // `<command> --help`: print usage only, run nothing.
     if (results['help'] as bool) {
-      say(_commandUsage[command]!);
+      say(t('cmd.$command'));
       say(parser.usage);
       return exitOk;
     }
@@ -155,19 +191,23 @@ int runCli(
       case 'where':
         final location = locate();
         final store = ModelStore(Directory(location.path));
-        say('models folder: ${location.path}');
-        say('chosen by:     ${location.reason}');
-        say('exists:        ${store.root.existsSync() ? 'yes' : 'no'}');
-        say('models:        ${store.listModels().length}');
+        final reason = location.reasonCode == null
+            ? location.reason
+            : t(location.reasonCode!, location.reasonParams);
+        say(t('where.folder', {'path': location.path}));
+        say(t('where.reason', {'reason': reason}));
+        say(
+          t('where.exists', {
+            'value': t(store.root.existsSync() ? 'word.yes' : 'word.no'),
+          }),
+        );
+        say(t('where.models', {'count': store.listModels().length}));
         return exitOk;
       case 'list':
         final store = ModelStore(Directory(locate().path));
         final refs = store.listModels();
         if (refs.isEmpty) {
-          say(
-            'no models found in ${store.root.path} '
-            '(see `ollama-carry where`)',
-          );
+          say(t('list.empty', {'path': store.root.path}));
           return exitOk;
         }
         final unique = <String, int>{};
@@ -182,116 +222,119 @@ int runCli(
         }
         final onDisk = unique.values.fold(0, (a, b) => a + b);
         say(
-          '${refs.length} models, ${formatBytes(listed)} added up, '
-          '${formatBytes(onDisk)} on disk (shared blobs counted once)',
+          t('list.summary', {
+            'count': refs.length,
+            'listed': formatBytes(listed),
+            'disk': formatBytes(onDisk),
+          }),
         );
         return exitOk;
       case 'export':
         final output = results['output'] as String?;
         if (output == null) {
-          throw CarryException(
-            'missing -o <file>, e.g. `ollama-carry export llama3 -o '
-            '/path/llama3.carry.tar`',
+          throw CarryException.coded(
+            'error.export_no_output',
             exitCode: exitUsage,
           );
         }
         final split = results['split'] as String?;
         final store = ModelStore(Directory(locate().path));
-        say('exporting from ${store.root.path}');
+        say(t('export.start', {'path': store.root.path}));
         final result = exportModels(
           store,
           rest,
           output: output,
           splitSize: split == null ? null : parseSize(split),
           log: say,
+          lang: lang,
         );
         for (final part in result.parts) {
-          say('wrote ${part.path}  ${formatBytes(part.size)}');
+          say(
+            t('export.wrote_part', {
+              'path': part.path,
+              'size': formatBytes(part.size),
+            }),
+          );
         }
-        say('wrote ${checksumPath(output)}  (sha256sum format)');
+        say(t('export.wrote_sums', {'path': checksumPath(output)}));
         say(
-          '${result.models} models, ${result.blobCount} unique blobs, '
-          '${formatBytes(result.blobBytes)}; sharing saved '
-          '${formatBytes(result.savedBytes)}',
+          t('export.summary', {
+            'models': result.models,
+            'blobs': result.blobCount,
+            'bytes': formatBytes(result.blobBytes),
+            'saved': formatBytes(result.savedBytes),
+          }),
         );
         return exitOk;
       case 'import':
         if (rest.length != 1) {
-          throw CarryException(
-            'give exactly one bundle: `ollama-carry import <file|file.000>`',
-            exitCode: exitUsage,
-          );
+          throw CarryException.coded('error.import_one', exitCode: exitUsage);
         }
         final store = ModelStore(Directory(locate().path));
         final dry = results['dry-run'] as bool;
-        say('${dry ? 'dry run: ' : ''}importing into ${store.root.path}');
-        if (!dry) {
-          say(
-            'note: stop the Ollama server (or set OLLAMA_NOPRUNE=1) while '
-            'importing, or it may prune blobs that have no manifest yet',
-          );
-        }
+        say(
+          t(dry ? 'import.start_dry' : 'import.start', {
+            'path': store.root.path,
+          }),
+        );
+        if (!dry) say(t('import.note_prune'));
         final report = importBundle(
           store,
           rest.single,
           dryRun: dry,
           force: results['force'] as bool,
           log: say,
+          lang: lang,
         );
-        say('models: ${report.modelNames.join(', ')}');
+        say(t('import.models', {'names': report.modelNames.join(', ')}));
         say(
-          'models: new ${report.modelsNew}, unchanged '
-          '${report.modelsUnchanged}, replaced ${report.modelsOverwritten}',
+          t('import.counts', {
+            'new': report.modelsNew,
+            'unchanged': report.modelsUnchanged,
+            'replaced': report.modelsOverwritten,
+          }),
         );
         say(
-          'blobs: ${dry ? 'would write' : 'written'} ${report.blobsToWrite} '
-          '(${formatBytes(report.bytesToWrite)}), '
-          'skipped ${report.blobsSkipped}',
+          t(dry ? 'import.blobs_dry' : 'import.blobs', {
+            'count': report.blobsToWrite,
+            'bytes': formatBytes(report.bytesToWrite),
+            'skipped': report.blobsSkipped,
+          }),
         );
         if (dry) {
-          say(
-            'dry run: blob contents were not hashed; run without '
-            '--dry-run to verify and install',
-          );
+          say(t('import.dry_note'));
         } else if (store.root.path.startsWith('/usr/share/ollama')) {
-          say(
-            'hint: if Ollama runs as the "ollama" user, change the owner '
-            'of ${store.root.path} to that user (chown -R ollama:ollama)',
-          );
+          say(t('import.chown_hint', {'path': store.root.path}));
         }
         return exitOk;
       case 'verify':
         final store = ModelStore(Directory(locate().path));
         final report = verifyStore(store, models: rest);
-        say((results['json'] as bool) ? report.toJson() : report.toText());
+        say(
+          (results['json'] as bool)
+              ? report.toJson()
+              : report.toText(lang: lang),
+        );
         return report.isOk ? exitOk : exitIntegrity;
       case 'mock':
         if (rest.length != 1) {
-          throw CarryException(
-            'give an empty folder: `ollama-carry mock <dir>`',
-            exitCode: exitUsage,
-          );
+          throw CarryException.coded('error.mock_one', exitCode: exitUsage);
         }
         final size = parseSize(results['weights-size'] as String);
         createMockStore(Directory(rest.single), weightsSize: size);
-        say(
-          'created practice (mock) models in ${rest.single} - fake weights, '
-          'same layout and hash rules as Ollama; try:',
-        );
+        say(t('mock.created', {'path': rest.single}));
         say('  ollama-carry list --models ${rest.single}');
         return exitOk;
       default:
-        runTour(say);
+        runTour(say, lang: lang);
         return exitOk;
     }
   } on CarryException catch (e) {
-    stderrSink.writeln('error: ${e.message}');
+    stderrSink.writeln('${t('error.prefix')}${e.localized(lang)}');
     return e.exitCode;
   } on FileSystemException catch (e) {
     stderrSink.writeln(
-      'error: ${e.message}: ${e.path ?? ''} '
-      '(${e.osError?.message ?? 'file system error'}). Check the path and '
-      'permissions.',
+      '${t('error.prefix')}${t('error.fs', {'message': e.message, 'path': e.path ?? '', 'os': e.osError?.message ?? t('error.fs_generic')})}',
     );
     return exitIntegrity;
   }
