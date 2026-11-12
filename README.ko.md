@@ -27,7 +27,7 @@ export PATH="$HOME/.local/bin:$PATH"   # 새 터미널에서도 쓰려면 셸 �
 ollama-carry --version
 ```
 
-실행하면 `ollama-carry 0.2.0` 이 나옵니다. PATH 를 건드리기 싫다면 마지막 줄을 `"$HOME/.local/bin/ollama-carry" --version` 으로 바꿔 전체 경로로 실행해도 됩니다. 최소 리눅스에서는 `git` 과 Dart SDK 만 있으면 됩니다(Dart 설치 방법은 위 링크). 빌드 결과를 레포 안에 두지 않도록 `-o` 로 레포 밖 경로를 지정하세요.
+실행하면 `ollama-carry 0.2.1` 이 나옵니다. PATH 를 건드리기 싫다면 마지막 줄을 `"$HOME/.local/bin/ollama-carry" --version` 으로 바꿔 전체 경로로 실행해도 됩니다. 최소 리눅스에서는 `git` 과 Dart SDK 만 있으면 됩니다(Dart 설치 방법은 위 링크). 빌드 결과를 레포 안에 두지 않도록 `-o` 로 레포 밖 경로를 지정하세요.
 
 ## 빠르게 시작하기
 

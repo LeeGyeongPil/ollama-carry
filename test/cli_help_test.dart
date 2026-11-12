@@ -99,11 +99,11 @@ void main() {
       final h = cli(['--help']);
       expect(h.code, 0);
       expect(cli(['-h']).out, h.out);
-      expect(h.out, startsWith('ollama-carry 0.2.0 - move Ollama models'));
+      expect(h.out, startsWith('ollama-carry 0.2.1 - move Ollama models'));
       final none = cli([]);
       expect(none.code, 2);
       expect(none.out, h.out);
-      expect(cli(['--version']).out, 'ollama-carry 0.2.0\n');
+      expect(cli(['--version']).out, 'ollama-carry 0.2.1\n');
     });
   });
 }
