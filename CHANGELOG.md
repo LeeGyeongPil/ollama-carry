@@ -6,6 +6,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-12
+
+### Added
+- Korean messages: help, results and errors can be printed in English or Korean. Choose with `--lang en|ko` (before or after the command), `OLLAMA_CARRY_LANG`, or the usual `LC_ALL` / `LC_MESSAGES` / `LANG`; anything that is not Korean prints English.
+- `CarryException` (and `TarFormatException`) have optional `code` and `params` fields and a `CarryException.coded` constructor, so errors can be translated; `message` stays English.
+- `VerifyReport.toText` takes an optional `lang`; `exportModels`, `importBundle` and `runTour` take an optional `lang` for their progress lines.
+
+### Changed
+- On a Korean locale (`LANG`/`LC_ALL`/`LC_MESSAGES` starting with `ko`) human readable output is now Korean. Scripts that match the English text should set `OLLAMA_CARRY_LANG=en` or pass `--lang en`. JSON output, exit codes, command and option names, and the bundle format are unchanged.
+- Bundles record the new tool version (`0.2.0`) in `carry.json`; the bundle format version is unchanged.
+
 ## [0.1.2] - 2026-11-11
 
 ### Fixed
