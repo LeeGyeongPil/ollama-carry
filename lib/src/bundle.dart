@@ -8,7 +8,7 @@ import 'model_ref.dart';
 const String bundleFormat = 'ollama-carry/1';
 
 /// Tool version written into bundles.
-const String toolVersion = '0.2.1';
+const String toolVersion = '0.2.2';
 
 /// A model listed in the bundle index.
 class IndexModel {

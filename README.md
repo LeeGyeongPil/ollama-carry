@@ -27,7 +27,7 @@ export PATH="$HOME/.local/bin:$PATH"   # To use it in new terminals too, add thi
 ollama-carry --version
 ```
 
-Running it prints `ollama-carry 0.2.1`. If you do not want to touch PATH, you can change the last line to `"$HOME/.local/bin/ollama-carry" --version` and run it by full path. On minimal Linux you only need `git` and the Dart SDK (see the link above for installing Dart). To keep the build output out of the repo, give `-o` a path outside the repo.
+Running it prints `ollama-carry 0.2.2`. If you do not want to touch PATH, you can change the last line to `"$HOME/.local/bin/ollama-carry" --version` and run it by full path. On minimal Linux you only need `git` and the Dart SDK (see the link above for installing Dart). To keep the build output out of the repo, give `-o` a path outside the repo.
 
 ## Quick start
 
