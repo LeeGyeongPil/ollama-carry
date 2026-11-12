@@ -27,7 +27,7 @@ export PATH="$HOME/.local/bin:$PATH"   # To use it in new terminals too, add thi
 ollama-carry --version
 ```
 
-Running it prints `ollama-carry 0.1.2`. If you do not want to touch PATH, you can change the last line to `"$HOME/.local/bin/ollama-carry" --version` and run it by full path. On minimal Linux you only need `git` and the Dart SDK (see the link above for installing Dart). To keep the build output out of the repo, give `-o` a path outside the repo.
+Running it prints `ollama-carry 0.2.0`. If you do not want to touch PATH, you can change the last line to `"$HOME/.local/bin/ollama-carry" --version` and run it by full path. On minimal Linux you only need `git` and the Dart SDK (see the link above for installing Dart). To keep the build output out of the repo, give `-o` a path outside the repo.
 
 ## Quick start
 
@@ -163,6 +163,23 @@ In scripts, use `verify --json`. For each blob it gives `digest`, `size`, `statu
 | OS default | macOS and Windows: `~/.ollama/models`. Linux: `/usr/share/ollama/.ollama/models` if it has `manifests/` (service install), otherwise `~/.ollama/models` |
 
 It uses no API key and no network. `ollama-carry where` prints the evidence for which folder was chosen and why (a Linux service install is owned by the `ollama` user, so `sudo` or `--models` may be needed).
+
+## Language (English / Korean)
+
+The screen output (help, results, error messages) is available in English and Korean. The language is chosen in this order, and the first one that is set wins:
+
+1. `--lang en|ko` (before or after the command)
+2. `OLLAMA_CARRY_LANG`
+3. `LC_ALL`, then `LC_MESSAGES`, then `LANG`
+
+A value that starts with `ko` (for example `ko_KR.UTF-8`) prints Korean; anything else, or nothing, prints English.
+
+```bash
+ollama-carry where --lang ko
+OLLAMA_CARRY_LANG=ko ollama-carry list
+```
+
+Not translated (kept as the original English or as-is): model names, paths, byte sizes, hashes, the words in `verify --json` and all other JSON keys and values, file system (OS) error texts, and parse errors from the command line library that this tool does not recognise. Exit codes (0/1/2/3), command and option names, and the bundle format do not change with the language.
 
 ## How it works
 
