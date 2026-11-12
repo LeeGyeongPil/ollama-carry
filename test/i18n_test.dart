@@ -205,7 +205,11 @@ void main() {
     test('where reason for OLLAMA_MODELS and the OS default is Korean', () {
       final env = {'OLLAMA_MODELS': src.root.path};
       expect(run(ko(['where']), env: env).out, contains('OLLAMA_MODELS 환경 변수'));
-      final home = run(ko(['where']), env: {'HOME': tmp.path});
+      // The home folder comes from HOME on macOS/Linux and USERPROFILE on
+      // Windows, so set both to keep this test the same on every OS.
+      final homeEnv = {'HOME': tmp.path, 'USERPROFILE': tmp.path};
+      final home = run(ko(['where']), env: homeEnv);
+      expect(home.code, 0, reason: home.err);
       expect(home.out, contains('기본 폴더'));
     });
 
